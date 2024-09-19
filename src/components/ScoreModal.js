@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
+import React, { useState } from "react";
+import styled from "styled-components";
 
 const ModalBackground = styled.div`
   position: fixed;
@@ -11,6 +11,7 @@ const ModalBackground = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
+  z-index: 1000;
 `;
 
 const ModalContent = styled.div`
@@ -29,7 +30,7 @@ const Input = styled.input`
 `;
 
 const Button = styled.button`
-  background-color: #4CAF50;
+  background-color: #4caf50;
   border: none;
   color: white;
   padding: 10px 20px;
@@ -47,12 +48,12 @@ const Button = styled.button`
 `;
 
 const ScoreModal = ({ isOpen, onRequestClose, onSave }) => {
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
 
   const handleSave = () => {
     if (name.trim()) {
       onSave(name);
-      setName('');
+      setName("");
     }
   };
 

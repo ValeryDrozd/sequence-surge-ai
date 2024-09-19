@@ -1,7 +1,6 @@
 // Import the functions you need from the SDKs you need
-import firebase from 'firebase/app';
-import 'firebase/firestore';
-
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -10,12 +9,13 @@ const firebaseConfig = {
   projectId: "sequence-surge-ai",
   storageBucket: "sequence-surge-ai.appspot.com",
   messagingSenderId: "1044055401665",
-  appId: "1:1044055401665:web:60554d268e4382185c2040"
+  appId: "1:1044055401665:web:60554d268e4382185c2040",
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 
-const db = firebase.firestore();
+// Initialize Firestore
+const firestore = getFirestore(app);
 
-export { db };
+export { firestore };

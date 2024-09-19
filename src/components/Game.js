@@ -1,12 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import * as d3Voronoi from 'd3-voronoi';
-import * as d3Color from 'd3-color';
-import styled from 'styled-components';
-import Menu from './Menu';
-import Timer from './Timer';
-import RulesModal from './RulesModal';
-import ScoreModal from './ScoreModal'; // Ensure this import is correct
-import Leaderboard from './Leaderboard'; // Ensure this import is correct
+import React, { useState, useEffect, useRef } from "react";
+import * as d3Voronoi from "d3-voronoi";
+import * as d3Color from "d3-color";
+import styled from "styled-components";
+import Menu from "./Menu";
+import Timer from "./Timer";
+import RulesModal from "./RulesModal";
+import ScoreModal from "./ScoreModal"; // Ensure this import is correct
+import Leaderboard from "./Leaderboard"; // Ensure this import is correct
+import GameOverModal from "./GameOverModal";
+import { firestore } from "../firebase-config";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 
 const GameContainer = styled.div`
   display: flex;
@@ -61,7 +71,7 @@ const PauseOverlay = styled.div`
   color: black;
   cursor: pointer;
   z-index: 1000;
-  visibility: ${(props) => (props.isVisible ? 'visible' : 'hidden')};
+  visibility: ${(props) => (props.isVisible ? "visible" : "hidden")};
 `;
 
 const RulesModalContainer = styled.div`
@@ -89,7 +99,7 @@ const Polygon = styled.polygon`
   stroke: black;
   stroke-width: 2;
   cursor: pointer;
-  visibility: ${(props) => (props.isVisible ? 'visible' : 'hidden')};
+  visibility: ${(props) => (props.isVisible ? "visible" : "hidden")};
 `;
 
 const Text = styled.text`
@@ -109,8 +119,8 @@ const Popup = styled.div`
   padding: 10px;
   border-radius: 5px;
   z-index: 1000;
-  visibility: ${(props) => (props.isVisible ? 'visible' : 'hidden')};
-  opacity: ${(props) => (props.isVisible ? '1' : '0')};
+  visibility: ${(props) => (props.isVisible ? "visible" : "hidden")};
+  opacity: ${(props) => (props.isVisible ? "1" : "0")};
   transition: opacity 0.3s ease;
 `;
 
@@ -119,17 +129,38 @@ const TimerContainer = styled.div`
   text-align: center;
 `;
 
+const TitleLabel = styled.div`
+  font-size: 48px; /* Larger font size */
+  font-weight: bold;
+  color: #4a90e2; /* Cool blue color */
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3); /* Shadow effect for better readability */
+  margin-bottom: 20px;
+  text-align: center;
+  letter-spacing: 2px; /* Spacing between letters */
+  background: linear-gradient(45deg, #f06, #f79); /* Gradient background */
+  -webkit-background-clip: text; /* Clip background to text */
+  color: transparent; /* Hide the text color to show gradient */
+  border-radius: 10px; /* Rounded corners */
+  padding: 10px; /* Padding around text */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Soft shadow for depth */
+`;
+
 function Game() {
   const [polyhedrons, setPolyhedrons] = useState([]);
   const [currentNumber, setCurrentNumber] = useState(1);
   const [polyhedronCount, setPolyhedronCount] = useState(30);
   const [isModalOpen, setIsModalOpen] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
-  const [popupText, setPopupText] = useState('');
+  const [popupText, setPopupText] = useState("");
   const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [hintActive, setHintActive] = useState(false);
   const [isScoreModalOpen, setIsScoreModalOpen] = useState(false);
   const [currentLeaderboard, setCurrentLeaderboard] = useState([]);
+  const [hintCount, setHintCount] = useState(5);
+  const [showTargetCount, setShowTargetCount] = useState(5);
+  const [isGameCompleted, setIsGameCompleted] = useState(false);
+  const [difficulty, setDifficulty] = useState("Medium"); // Default to Medium
+  const [isGameOverModalOpen, setIsGameOverModalOpen] = useState(false);
 
   const timerRef = useRef(null);
 
@@ -147,15 +178,19 @@ function Game() {
 
   const generatePolyhedrons = (count) => {
     const newPoints = generateRandomPoints(count);
-    const voronoi = d3Voronoi.voronoi()
-      .extent([[0, 0], [500, 500]])
+    const voronoi = d3Voronoi
+      .voronoi()
+      .extent([
+        [0, 0],
+        [500, 500],
+      ])
       .polygons(newPoints);
 
     const newPolyhedrons = voronoi.map((polygon, index) => ({
       id: index + 1,
       points: polygon,
       number: index + 1,
-      color: '#' + (Math.random() * 0xFFFFFF << 0).toString(16),
+      color: "#" + ((Math.random() * 0xffffff) << 0).toString(16),
       isVisible: true,
     }));
 
@@ -169,48 +204,116 @@ function Game() {
   };
 
   const handlePolyhedronClick = (number) => {
-    if (!isPaused && number === currentNumber) {
-      if (polyhedrons.length === 1) { // Last polyhedron clicked
-        setIsScoreModalOpen(true);
+    if (difficulty === "IronMan") {
+      if (!isPaused && number !== currentNumber) {
+        setIsGameOverModalOpen(true); // Open Game Over modal
+        setIsGameCompleted(true);
+        timerRef.current.stop();
+        return;
       }
-      setCurrentNumber(prevNumber => prevNumber + 1);
-      setPolyhedrons(prev => prev.filter((poly) => poly.number !== number));
+    }
+
+    if (!isPaused && number === currentNumber) {
+      if (polyhedrons.length === 1) {
+        // Last polyhedron clicked
+        setIsScoreModalOpen(true);
+        setIsGameCompleted(true); // Mark game as completed
+        timerRef.current.stop();
+      }
+      setCurrentNumber((prevNumber) => prevNumber + 1);
+      setPolyhedrons((prev) => prev.filter((poly) => poly.number !== number));
     } else if (!isPaused && number !== currentNumber) {
-      setPolyhedrons(prev => prev.map(poly => poly.number === number ? { ...poly, color: '#ff0000' } : poly));
-      setTimeout(() => {
-        setPolyhedrons(prev => prev.map(poly => poly.number === number ? { ...poly, color: '#' + (Math.random() * 0xFFFFFF << 0).toString(16) } : poly));
-      }, 500);
+      if (difficulty !== "IronMan") {
+        setPolyhedrons((prev) =>
+          prev.map((poly) =>
+            poly.number === number ? { ...poly, color: "#ff0000" } : poly
+          )
+        );
+        setTimeout(() => {
+          setPolyhedrons((prev) =>
+            prev.map((poly) =>
+              poly.number === number
+                ? {
+                    ...poly,
+                    color: "#" + ((Math.random() * 0xffffff) << 0).toString(16),
+                  }
+                : poly
+            )
+          );
+        }, 500);
+      }
     }
   };
 
   const handlePauseClick = () => {
-    setIsPaused(prev => !prev);
+    setIsPaused((prev) => !prev);
   };
 
   const handleShowCurrentTarget = () => {
-    setPopupText(`Current target: ${currentNumber}`);
-    setIsPopupVisible(true);
-    setTimeout(() => setIsPopupVisible(false), 3000);
+    if (difficulty === "Hard" || difficulty === "IronMan") return;
+    if (showTargetCount > 0) {
+      setPopupText(`Current target: ${currentNumber}`);
+      setIsPopupVisible(true);
+      setShowTargetCount((prev) => prev - 1); // Decrease Show Current Target count
+      setTimeout(() => setIsPopupVisible(false), 3000);
+    }
   };
 
   const handleHint = () => {
-    setHintActive(true);
-    setPolyhedrons(prev => prev.map(poly => ({ ...poly, isVisible: poly.number === currentNumber })));
-    setTimeout(() => {
-      setHintActive(false);
-      setPolyhedrons(prev => prev.map(poly => ({ ...poly, isVisible: true })));
-    }, 1000);
+    if (difficulty === "Hard" || difficulty === "IronMan") return;
+    if (hintCount > 0) {
+      setHintActive(true);
+      setHintCount((prev) => prev - 1); // Decrease hint count
+      setPolyhedrons((prev) =>
+        prev.map((poly) => ({
+          ...poly,
+          isVisible: poly.number === currentNumber,
+        }))
+      );
+      setTimeout(() => {
+        setHintActive(false);
+        setPolyhedrons((prev) =>
+          prev.map((poly) => ({ ...poly, isVisible: true }))
+        );
+      }, 1000);
+    }
   };
 
-  const handleSaveScore = (name) => {
-    const newScore = {
-      name,
-      time: timerRef.current.seconds, // Ensure this returns the correct time value
-    };
+  const fetchLeaderboardData = async (diff) => {
+    try {
+      const scoresRef = collection(
+        firestore,
+        `leaderboards/${polyhedronCount}/scores`
+      );
+      const q = query(scoresRef, orderBy("time"), limit(10)); // Order by time and limit to 10 results
+      const querySnapshot = await getDocs(q);
+      const fetchedScores = querySnapshot.docs
+        .map((doc) => doc.data())
+        .filter((score) => score.difficulty === diff); // Filter by difficulty
+      setCurrentLeaderboard(fetchedScores);
+    } catch (error) {
+      console.error("Error fetching leaderboard data:", error);
+    }
+  };
 
-    // Update leaderboard based on the polyhedron count
-    setCurrentLeaderboard(prev => [...prev, newScore].sort((a, b) => a.time - b.time));
-    setIsScoreModalOpen(false);
+  const handleSaveScore = async (name) => {
+    try {
+      const scoresRef = collection(
+        firestore,
+        `leaderboards/${polyhedronCount}/scores`
+      );
+      const newScore = {
+        name,
+        time: timerRef.current.seconds, // Ensure this returns the correct time value
+        difficulty, // Add difficulty here
+      };
+      await addDoc(scoresRef, newScore); // Add new score to Firestore
+      handleRestart();
+      fetchLeaderboardData(difficulty); // Refresh leaderboard after saving
+      setIsScoreModalOpen(false);
+    } catch (error) {
+      console.error("Error saving score:", error);
+    }
   };
 
   useEffect(() => {
@@ -219,6 +322,8 @@ function Game() {
     if (timerRef.current) {
       timerRef.current.reset();
     }
+
+    fetchLeaderboardData(difficulty); // Fetch leaderboard data
   }, [polyhedronCount]);
 
   useEffect(() => {
@@ -229,40 +334,90 @@ function Game() {
     }
   }, []);
 
+  useEffect(() => {
+    switch (difficulty) {
+      case "Easy":
+        setHintCount(Infinity); // Unlimited hints
+        setShowTargetCount(Infinity); // Unlimited target shows
+        break;
+      case "Medium":
+        setHintCount(5);
+        setShowTargetCount(5);
+        break;
+      case "Hard":
+      case "IronMan":
+        setHintCount(0);
+        setShowTargetCount(0);
+        break;
+      default:
+        setHintCount(5);
+        setShowTargetCount(5);
+    }
+  }, [difficulty, polyhedronCount]);
+
+  const handleRestart = () => {
+    generatePolyhedrons(polyhedronCount);
+    setCurrentNumber(1);
+    if (timerRef.current) {
+      timerRef.current.reset();
+    }
+    setHintCount(
+      difficulty === "Easy" ? Infinity : difficulty === "Medium" ? 5 : 0
+    );
+    setShowTargetCount(
+      difficulty === "Easy" ? Infinity : difficulty === "Medium" ? 5 : 0
+    );
+    setIsGameCompleted(false);
+  };
+
+  const handleDifficultyChange = (diff) => {
+    setDifficulty(diff);
+    handleRestart(); // Restart game with new difficulty settings
+    fetchLeaderboardData(diff);
+  };
+
   return (
     <GameContainer>
       <MenuContainer>
         <Menu
-          onRestart={() => {
-            generatePolyhedrons(polyhedronCount);
-            setCurrentNumber(1);
-            if (timerRef.current) {
-              timerRef.current.reset();
-            }
-          }}
+          onRestart={handleRestart}
           onPause={handlePauseClick}
           onShowCurrentTarget={handleShowCurrentTarget}
           onHint={handleHint}
           onPolyhedronChange={(count) => setPolyhedronCount(count)}
           onOpenRules={() => setIsModalOpen(true)}
+          hintCount={hintCount}
+          showTargetCount={showTargetCount}
+          isGameCompleted={isGameCompleted} // Pass the game completion state
+          difficulty={difficulty}
+          onDifficultyChange={handleDifficultyChange}
         />
       </MenuContainer>
       <GameAreaContainer>
+        <TitleLabel>Sequence Surge AI</TitleLabel>
         <GameArea>
           {polyhedrons.map((poly) => {
             let color;
             try {
               color = d3Color.color(poly.color);
-              if (!color) throw new Error('Invalid color');
+              if (!color) throw new Error("Invalid color");
             } catch {
-              color = d3Color.color('#000000');
+              color = d3Color.color("#000000");
             }
-            const brightness = (color.r * 299 + color.g * 587 + color.b * 114) / 1000;
-            const textColor = brightness > 180 ? 'black' : 'white';
+            const brightness =
+              (color.r * 299 + color.g * 587 + color.b * 114) / 1000;
+            const textColor = brightness > 180 ? "black" : "white";
             const [cx, cy] = calculateCentroid(poly.points);
             return (
-              <g key={poly.id} onClick={() => handlePolyhedronClick(poly.number)}>
-                <Polygon points={poly.points.map((p) => p.join(',')).join(' ')} bgColor={poly.color} isVisible={poly.isVisible} />
+              <g
+                key={poly.id}
+                onClick={() => handlePolyhedronClick(poly.number)}
+              >
+                <Polygon
+                  points={poly.points.map((p) => p.join(",")).join(" ")}
+                  bgColor={poly.color}
+                  isVisible={poly.isVisible}
+                />
                 {poly.isVisible && (
                   <Text x={cx} y={cy} textColor={textColor}>
                     {poly.number}
@@ -283,11 +438,24 @@ function Game() {
         Game is paused, click to Resume
       </PauseOverlay>
       <Popup isVisible={isPopupVisible}>{popupText}</Popup>
-      <RulesModal isOpen={isModalOpen} onRequestClose={() => setIsModalOpen(false)} />
+      <RulesModal
+        isOpen={isModalOpen}
+        onRequestClose={() => setIsModalOpen(false)}
+      />
       <ScoreModal
         isOpen={isScoreModalOpen}
-        onRequestClose={() => setIsScoreModalOpen(false)}
+        onRequestClose={() => {
+          setIsScoreModalOpen(false);
+          handleRestart();
+        }}
         onSave={handleSaveScore}
+      />
+      <GameOverModal
+        isOpen={isGameOverModalOpen}
+        onRequestClose={() => {
+          handleRestart();
+          setIsGameOverModalOpen(false);
+        }}
       />
     </GameContainer>
   );

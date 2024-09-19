@@ -1,5 +1,5 @@
-import React from 'react';
-import styled from 'styled-components';
+import React from "react";
+import styled from "styled-components";
 
 const ModalBackground = styled.div`
   position: fixed;
@@ -43,6 +43,12 @@ const RulesList = styled.ul`
 
 const RuleItem = styled.li`
   margin: 10px 0;
+  line-height: 1.6;
+`;
+
+const Highlight = styled.span`
+  font-weight: bold;
+  color: #007bff; /* Change color to your preference */
 `;
 
 const RulesModal = ({ isOpen, onRequestClose }) => {
@@ -54,15 +60,33 @@ const RulesModal = ({ isOpen, onRequestClose }) => {
         <CloseButton onClick={onRequestClose}>Close</CloseButton>
         <h2>Game Rules</h2>
         <RulesList>
-          <RuleItem>1. The game area is a 500x500 square.</RuleItem>
-          <RuleItem>2. Polyhedrons with numbers from 1 to max are displayed.</RuleItem>
-          <RuleItem>3. Click polyhedrons in ascending order.</RuleItem>
-          <RuleItem>4. Correct clicks make polyhedrons disappear.</RuleItem>
-          <RuleItem>5. Incorrect clicks turn polyhedrons red for 1/2 second.</RuleItem>
-          <RuleItem>6. Use the Hint button to highlight the correct polyhedron.</RuleItem>
-          <RuleItem>7. You have 5 hints per game.</RuleItem>
-          <RuleItem>8. Use the Pause button to pause the game and Resume by clicking the overlay.</RuleItem>
-          <RuleItem>9. The timer resets on game restart.</RuleItem>
+          <RuleItem>
+            Click on the numbers in <Highlight>ascending order</Highlight> as
+            quickly as possible. The game ends when you reach the{" "}
+            <Highlight>highest number</Highlight>.
+          </RuleItem>
+          <RuleItem>
+            <Highlight>Difficulty Levels:</Highlight>
+            <ul>
+              <li>
+                <strong>Easy:</strong> Unlimited hints and target shows.
+              </li>
+              <li>
+                <strong>Medium:</strong> 5 hints and 5 target shows.
+              </li>
+              <li>
+                <strong>Hard:</strong> No hints or target shows.
+              </li>
+              <li>
+                <strong>IronMan:</strong> No hints or target shows; making a
+                wrong move ends the game.
+              </li>
+            </ul>
+          </RuleItem>
+          <RuleItem>
+            <Highlight>Number of Polyhedrons Setting:</Highlight> Adjust the
+            number of polyhedrons for varying levels of challenge.
+          </RuleItem>
         </RulesList>
       </ModalContent>
     </ModalBackground>
