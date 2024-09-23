@@ -102,12 +102,9 @@ const Polygon = styled.polygon`
   visibility: ${(props) => (props.isVisible ? "visible" : "hidden")};
 `;
 
-const Text = styled.text`
-  fill: ${(props) => props.textColor};
-  font-size: 14px;
-  font-weight: bold;
-  dominant-baseline: middle;
-  text-anchor: middle;
+const Image = styled.image`
+  width: 20px;
+  height: 20px;
 `;
 
 const Popup = styled.div`
@@ -376,6 +373,28 @@ function Game() {
     fetchLeaderboardData(diff);
   };
 
+  const generateNumberImage = (number, textColor) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 100;
+    canvas.height = 100;
+    const ctx = canvas.getContext("2d");
+
+    // Set background to transparent
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Set font styles
+    ctx.font = "bold 70px Arial";
+    ctx.fillStyle = textColor;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Draw the number in the center
+    ctx.fillText(number, canvas.width / 2, canvas.height / 2);
+
+    // Return image data URL
+    return canvas.toDataURL();
+  };
+
   return (
     <GameContainer>
       <MenuContainer>
@@ -419,9 +438,11 @@ function Game() {
                   isVisible={poly.isVisible}
                 />
                 {poly.isVisible && (
-                  <Text x={cx} y={cy} textColor={textColor}>
-                    {poly.number}
-                  </Text>
+                  <Image
+                    x={cx - 10}
+                    y={cy - 10}
+                    href={generateNumberImage(poly.number, textColor)}
+                  />
                 )}
               </g>
             );
